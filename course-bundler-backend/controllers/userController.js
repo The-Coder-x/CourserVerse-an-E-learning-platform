@@ -6,12 +6,15 @@ import sendToken from "../utils/SendToken.js";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/sendEmail.js";
 import crypto from "crypto";
+import cloudinary from "cloudinary";
+import getDataUri from "../utils/dataUri.js";
 
 export const register = catchAsyncError(async (req, res, next) => {
   // 1. Validate the request body
   const { name, email, password } = req.body;
-  // const file = req.file;
-  if (!name || !email || !password)
+  const file = req.file;
+
+  if (!name || !email || !password||!file)
     return next(new ErrorHandler("Please Enter All  Fields", 400));
   let user = await User.findOne({ email });
 
@@ -20,6 +23,9 @@ export const register = catchAsyncError(async (req, res, next) => {
     return next(
       new ErrorHandler(`User with this ${email} is already registered`, 409)
     );
+  const fileUri = getDataUri(file);
+
+  const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
 
   //3. Create and save a new user document
   user = await User.create({
@@ -27,8 +33,8 @@ export const register = catchAsyncError(async (req, res, next) => {
     email,
     password,
     avatar: {
-      public_id: "TempID",
-      url: "TempID",
+      public_id: mycloud.public_id,
+      url: mycloud.secure_url,
     },
   });
 
@@ -38,7 +44,6 @@ export const register = catchAsyncError(async (req, res, next) => {
 export const login = catchAsyncError(async (req, res, next) => {
   // 1. Validate the request body
   const { email, password } = req.body;
-  // const file = req.file;
   if (!email || !password)
     return next(new ErrorHandler("Please Enter All  Fields", 400));
   const user = await User.findOne({ email }).select("+password");
@@ -111,7 +116,18 @@ export const updateProfile = catchAsyncError(async (req, res, next) => {
 });
 
 export const updateProfilePicture = catchAsyncError(async (req, res, next) => {
-  // TODO: cloudinary
+  const file = req.file;
+  const user = await User.findById(req.user._id);
+  const fileUri = getDataUri(file);
+
+  const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
+
+  await cloudinary.v2.uploader.destroy(user.avatar.public_id);
+  user.avatar = {
+    public_id: mycloud.public_id,
+    url: mycloud.secure_url,
+  };
+  await user.save();
 
   res.status(200).json({
     success: true,
@@ -201,7 +217,6 @@ export const removeFromPlaylist = catchAsyncError(async (req, res, next) => {
     if (item.course.toString() !== course._id.toString()) return item;
   });
   user.playlist = newPlaylist;
-
 
   await user.save();
   res.status(200).json({
