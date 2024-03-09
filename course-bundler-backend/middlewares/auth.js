@@ -10,11 +10,23 @@ export const isAuthenticated = catchAsyncError(async (req, res, next) => {
   req.user = await User.findById(decoded._id);
   next();
 });
+
 export const AuthorizedAdmin = (req, res, next) => {
   if (req.user.role !== "admin")
     return next(
       new ErrorHandler(
         `${req.user.role} is not allowed to access this resource. `,
+        403
+      )
+    );
+    next();
+};
+
+export const AuthorizedSubscribers = (req, res, next) => {
+  if (req.user.role !== "admin" && req.user.subscription.status!=="active")
+    return next(
+      new ErrorHandler(
+        `Only Subscribers is  allowed to access this resource. `,
         403
       )
     );
